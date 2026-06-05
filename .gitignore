@@ -1,0 +1,13 @@
+node_modules/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.*.example
+dist/
+.expo/
+apps/server/updates/
+apps/server/prisma/*.db
+apps/mobile/ios/
+apps/mobile/android/
+*.tsbuildinfo
