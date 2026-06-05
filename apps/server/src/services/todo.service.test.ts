@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "bun:test";
+import { ulid } from "ulid";
 import { prisma } from "@/adapters/database";
 import { userRepo } from "@/repos/user.repo";
 import { todoService } from "@/services/todo.service";
@@ -40,5 +41,81 @@ describe("todoService.sync", () => {
       changes: [],
     });
     expect(second.changes).toHaveLength(0);
+  });
+
+  it("cross-tenant write: user A cannot clobber or take over user B's todo", async () => {
+    // Set up two users
+    const userA = await userRepo.create({ email: "a@example.com", passwordHash: "ha" });
+    const userB = await userRepo.create({ email: "b@example.com", passwordHash: "hb" });
+
+    const todoId = ulid();
+    const originalTitle = "B's secret todo";
+
+    // Seed a todo owned by B (via B's legitimate sync)
+    await todoService.sync(userB.id, {
+      lastSyncAt: null,
+      changes: [
+        {
+          id: todoId,
+          title: originalTitle,
+          notes: null,
+          dueAt: null,
+          completed: false,
+          completedAt: null,
+          sortOrder: 0,
+          deletedAt: null,
+          updatedAt: new Date(Date.now() - 5000).toISOString(),
+        },
+      ],
+    });
+
+    // Confirm B owns it
+    const beforeAttack = await prisma.todo.findUnique({ where: { id: todoId } });
+    expect(beforeAttack?.userId).toBe(userB.id);
+    expect(beforeAttack?.title).toBe(originalTitle);
+
+    // A tries to overwrite B's todo with a future timestamp (bypass LWW)
+    await todoService.sync(userA.id, {
+      lastSyncAt: null,
+      changes: [
+        {
+          id: todoId,
+          title: "HACKED by A",
+          notes: null,
+          dueAt: null,
+          completed: false,
+          completedAt: null,
+          sortOrder: 0,
+          deletedAt: null,
+          updatedAt: new Date(Date.now() + 99999999).toISOString(), // future timestamp
+        },
+      ],
+    });
+
+    // Row must still belong to B and have B's original title
+    const afterAttack = await prisma.todo.findUnique({ where: { id: todoId } });
+    expect(afterAttack?.userId).toBe(userB.id);
+    expect(afterAttack?.title).toBe(originalTitle);
+
+    // Sanity: B's own legitimate LWW update still works
+    await todoService.sync(userB.id, {
+      lastSyncAt: null,
+      changes: [
+        {
+          id: todoId,
+          title: "B updated legitimately",
+          notes: null,
+          dueAt: null,
+          completed: false,
+          completedAt: null,
+          sortOrder: 0,
+          deletedAt: null,
+          updatedAt: new Date(Date.now() + 1000).toISOString(),
+        },
+      ],
+    });
+    const afterBUpdate = await prisma.todo.findUnique({ where: { id: todoId } });
+    expect(afterBUpdate?.userId).toBe(userB.id);
+    expect(afterBUpdate?.title).toBe("B updated legitimately");
   });
 });

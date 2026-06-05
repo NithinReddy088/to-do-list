@@ -31,11 +31,11 @@ export const todoRepo = {
     return prisma.todo.findUnique({ where: { id } });
   },
   upsert(userId: string, t: TodoInput) {
-    const data = toData(userId, t);
+    const { userId: _userId, ...updateData } = toData(userId, t);
     return prisma.todo.upsert({
       where: { id: t.id },
-      create: { id: t.id, ...data },
-      update: data,
+      create: { id: t.id, ...toData(userId, t) },
+      update: updateData,
     });
   },
   changedSince(userId: string, since: Date) {
