@@ -1,11 +1,23 @@
+import * as Updates from "expo-updates";
 import { checkAndApplyUpdate } from "@/features/updates/useUpdates";
 
-const mockUpdates = {
+// Self-contained factory (no outer references) so it survives jest's hoisting
+// above the imports. `__esModule: true` makes the production
+// `import * as Updates from "expo-updates"` resolve to this object directly
+// instead of nesting it under `.default`.
+jest.mock("expo-updates", () => ({
+  __esModule: true,
   checkForUpdateAsync: jest.fn(),
   fetchUpdateAsync: jest.fn(),
   reloadAsync: jest.fn(),
+}));
+
+// The imported namespace IS the mock; alias it with jest.Mock typing.
+const mockUpdates = Updates as unknown as {
+  checkForUpdateAsync: jest.Mock;
+  fetchUpdateAsync: jest.Mock;
+  reloadAsync: jest.Mock;
 };
-jest.mock("expo-updates", () => mockUpdates);
 
 describe("checkAndApplyUpdate", () => {
   beforeEach(() => jest.clearAllMocks());

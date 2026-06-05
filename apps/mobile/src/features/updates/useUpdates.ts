@@ -1,11 +1,10 @@
 import { useState } from "react";
+import * as Updates from "expo-updates";
 
 // Imperative helper (also unit-tested): checks our self-hosted server for a new
 // JS bundle, downloads it, and reloads if requested. Returns whether an update
 // was applied.
 export async function checkAndApplyUpdate(opts: { reload: boolean }): Promise<boolean> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Updates = require("expo-updates");
   const check = await Updates.checkForUpdateAsync();
   if (!check.isAvailable) return false;
   await Updates.fetchUpdateAsync();
@@ -16,8 +15,6 @@ export async function checkAndApplyUpdate(opts: { reload: boolean }): Promise<bo
 export function useUpdates() {
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Updates = require("expo-updates");
 
   async function check() {
     setChecking(true);
