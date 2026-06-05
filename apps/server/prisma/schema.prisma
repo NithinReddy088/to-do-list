@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  todos        Todo[]
+}
+
+model Todo {
+  id          String    @id
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  title       String
+  notes       String?
+  dueAt       DateTime?
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([userId, updatedAt])
+}
+
+model Update {
+  id             String   @id
+  updateId       String
+  runtimeVersion String
+  platform       String
+  channel        String   @default("production")
+  storagePath    String
+  manifestJson   Json
+  commitHash     String?
+  createdAt      DateTime @default(now())
+
+  @@index([runtimeVersion, platform, channel, createdAt])
+}
