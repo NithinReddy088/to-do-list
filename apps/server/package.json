@@ -9,10 +9,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint --ext .ts src/",
     "test": "bun test",
-    "db:generate": "bunx prisma generate",
-    "db:migrate": "bunx prisma migrate dev",
-    "db:migrate:deploy": "bunx prisma migrate deploy",
-    "db:studio": "bunx prisma studio",
+    "db:generate": "bun --env-file=env/.env.local x prisma generate",
+    "db:migrate": "bun --env-file=env/.env.local x prisma migrate dev",
+    "db:migrate:deploy": "bun --env-file=env/.env.local x prisma migrate deploy",
+    "db:studio": "bun --env-file=env/.env.local x prisma studio",
     "codesign:generate": "bun run scripts/generate-codesign-keys.ts"
   },
   "dependencies": {
