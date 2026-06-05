@@ -3,6 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 import { logger } from "@/common/logger";
 import { healthRoutes } from "@/routes/health.routes";
+import { authRoutes } from "@/routes/auth.routes";
 
 export const app = new Elysia()
   .use(cors())
@@ -16,6 +17,7 @@ export const app = new Elysia()
     set.status = code === "NOT_FOUND" ? 404 : 500;
     return { error: { code: String(code), message: "Request failed" } };
   })
-  .use(healthRoutes);
+  .use(healthRoutes)
+  .use(authRoutes);
 
 export default app;
