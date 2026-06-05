@@ -4,6 +4,7 @@ import { swagger } from "@elysiajs/swagger";
 import { logger } from "@/common/logger";
 import { healthRoutes } from "@/routes/health.routes";
 import { authRoutes } from "@/routes/auth.routes";
+import { todoRoutes } from "@/routes/todo.routes";
 
 export const app = new Elysia()
   .use(cors())
@@ -18,6 +19,7 @@ export const app = new Elysia()
     return { error: { code: String(code), message: "Request failed" } };
   })
   .use(healthRoutes)
-  .use(authRoutes);
+  .use(authRoutes)
+  .use(todoRoutes);
 
 export default app;
