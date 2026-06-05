@@ -84,14 +84,16 @@ export const useTodoStore = create<TodoState>()(
         }),
 
       sync: async () => {
-        const { lastSyncAt, pending, todos } = get();
+        const { lastSyncAt, pending } = get();
+        const sent = pending; // snapshot of what we send (object references)
         try {
-          const { data } = await api.post("/todos/sync", { lastSyncAt, changes: pending });
-          set({
-            todos: mergeServerChanges(todos, data.changes as Todo[]),
+          const { data } = await api.post("/todos/sync", { lastSyncAt, changes: sent });
+          const sentSet = new Set(sent); // identity set of sent items
+          set((s) => ({
+            todos: mergeServerChanges(s.todos, data.changes as Todo[]),
             lastSyncAt: data.serverTime,
-            pending: [],
-          });
+            pending: s.pending.filter((p) => !sentSet.has(p)), // keep items added during the await
+          }));
         } catch {
           // Offline or server error: keep pending changes for the next attempt.
         }
