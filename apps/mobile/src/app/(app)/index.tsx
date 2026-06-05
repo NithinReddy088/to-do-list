@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
-import { Stack, useRouter } from "expo-router";
-import { Plus } from "lucide-react-native";
+import { Link, Stack, useRouter } from "expo-router";
+import { Plus, Settings as SettingsIcon } from "lucide-react-native";
 import { useTodoStore } from "@/store/todos";
 import type { TodoFilter } from "@/types/todo";
 import { TodoItem } from "@/features/todos/TodoItem";
@@ -32,7 +32,16 @@ export default function TodoList() {
 
   return (
     <View className="flex-1 bg-background">
-      <Stack.Screen options={{ title: "Tasks" }} />
+      <Stack.Screen
+        options={{
+          title: "Tasks",
+          headerRight: () => (
+            <Link href="/(app)/settings" className="px-2">
+              <SettingsIcon size={22} color="#1B2533" />
+            </Link>
+          ),
+        }}
+      />
       <FilterBar value={filter} onChange={setFilter} />
       <FlatList
         data={visible}
