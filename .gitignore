@@ -11,3 +11,4 @@ apps/server/prisma/*.db
 apps/mobile/ios/
 apps/mobile/android/
 *.tsbuildinfo
+apps/server/keys/
