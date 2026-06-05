@@ -17,6 +17,6 @@
       "@utils/*": ["src/utils/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "app.config.ts", "nativewind-env.d.ts"],
+  "exclude": ["node_modules", "scripts"]
 }
