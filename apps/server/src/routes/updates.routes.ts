@@ -1,6 +1,6 @@
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { createReadStream, existsSync } from "node:fs";
-import { join } from "node:path";
+import { resolve, join, relative, isAbsolute } from "node:path";
 import { config } from "@/config/configs";
 import { updatesService } from "@/services/updates.service";
 
@@ -45,7 +45,16 @@ export const updatesRoutes = new Elysia({ prefix: "/api" })
       set.status = 400;
       return { error: { code: "MISSING_ASSET", message: "asset query param required" } };
     }
-    const full = join(config.updatesStorageDir, assetPath);
+
+    // Fix 1 (SECURITY): prevent path traversal outside the storage directory.
+    const base = resolve(config.updatesStorageDir);
+    const full = resolve(base, assetPath);
+    const rel = relative(base, full);
+    if (rel.startsWith("..") || isAbsolute(rel)) {
+      set.status = 400;
+      return { error: { code: "INVALID_ASSET_PATH", message: "Invalid asset path" } };
+    }
+
     if (!existsSync(full)) {
       set.status = 404;
       return { error: { code: "ASSET_NOT_FOUND", message: "Asset not found" } };
@@ -55,15 +64,26 @@ export const updatesRoutes = new Elysia({ prefix: "/api" })
   })
   // Admin publish endpoint. Expects the export to already be on disk under
   // storagePath; records the precomputed manifest as the latest update.
-  .post("/updates", async ({ headers, body, set }) => {
-    if (headers.authorization !== `Bearer ${config.adminPublishToken}`) {
-      set.status = 401;
-      return { error: { code: "UNAUTHORIZED", message: "Admin token required" } };
-    }
-    const b = body as {
-      updateId: string; runtimeVersion: string; platform: string;
-      channel: string; storagePath: string; manifest: any;
-    };
-    await updatesService.recordUpdate(b);
-    return { ok: true, updateId: b.updateId };
-  });
+  .post(
+    "/updates",
+    async ({ headers, body, set }) => {
+      if (headers.authorization !== `Bearer ${config.adminPublishToken}`) {
+        set.status = 401;
+        return { error: { code: "UNAUTHORIZED", message: "Admin token required" } };
+      }
+      await updatesService.recordUpdate(body);
+      return { ok: true, updateId: body.updateId };
+    },
+    {
+      // Fix 2: body schema validation — malformed requests return 422 before
+      // reaching handler logic (Elysia validates before calling the handler).
+      body: t.Object({
+        updateId: t.String(),
+        runtimeVersion: t.String(),
+        platform: t.String(),
+        channel: t.String(),
+        storagePath: t.String(),
+        manifest: t.Record(t.String(), t.Any()),
+      }),
+    },
+  );

@@ -13,12 +13,21 @@ export interface ExpoManifest {
   extra: Record<string, unknown>;
 }
 
+// Fix 3 (perf): cache the private key at module-load time instead of reading
+// from disk on every signManifest call.
+let _cachedPrivateKey: string | null = null;
+function getPrivateKey(): string {
+  if (!_cachedPrivateKey) {
+    _cachedPrivateKey = readFileSync(config.codeSigningPrivateKeyPath, "utf8");
+  }
+  return _cachedPrivateKey;
+}
+
 function signManifest(manifest: ExpoManifest): string {
-  const privateKey = readFileSync(config.codeSigningPrivateKeyPath, "utf8");
   const signer = createSign("RSA-SHA256");
   signer.update(JSON.stringify(manifest));
   signer.end();
-  return signer.sign(privateKey).toString("base64");
+  return signer.sign(getPrivateKey()).toString("base64");
 }
 
 export const updatesService = {
