@@ -17,7 +17,7 @@ async function json(path: string, method: string, body: unknown, token?: string)
 
 async function registerAndToken() {
   const res = await json("/auth/register", "POST", { email: "a@b.com", password: "secret123" });
-  return (await res.json()).token as string;
+  return ((await res.json()) as { token: string }).token;
 }
 
 describe("todo routes", () => {
@@ -46,7 +46,7 @@ describe("todo routes", () => {
       token,
     );
     expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data.changes.find((c: any) => c.id === "t1")?.title).toBe("Buy milk");
+    const data = (await res.json()) as { changes: Array<{ id: string; title: string }> };
+    expect(data.changes.find((c) => c.id === "t1")?.title).toBe("Buy milk");
   });
 });

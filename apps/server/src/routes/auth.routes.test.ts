@@ -24,7 +24,7 @@ describe("auth routes", () => {
   it("registers then returns a token", async () => {
     const res = await post("/auth/register", { email: "a@b.com", password: "secret123" });
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = (await res.json()) as { token: string; user: { id: string; email: string } };
     expect(json.token).toBeTruthy();
     expect(json.user.email).toBe("a@b.com");
   });
@@ -33,7 +33,7 @@ describe("auth routes", () => {
     await post("/auth/register", { email: "a@b.com", password: "secret123" });
     const res = await post("/auth/login", { email: "a@b.com", password: "secret123" });
     expect(res.status).toBe(200);
-    expect((await res.json()).token).toBeTruthy();
+    expect(((await res.json()) as { token: string }).token).toBeTruthy();
   });
 
   it("rejects bad login with 401", async () => {

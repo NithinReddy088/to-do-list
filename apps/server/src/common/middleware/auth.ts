@@ -4,7 +4,9 @@ import { Elysia } from "elysia";
 // Uses `as: "scoped"` so the derive and beforeHandle apply only to routes mounted after
 // this plugin — not to sibling routes on the parent app.
 export const authGuard = new Elysia({ name: "auth-guard" })
-  .derive({ as: "scoped" }, async ({ headers, jwt }) => {
+  .derive({ as: "scoped" }, async (ctx) => {
+    const { headers } = ctx;
+    const jwt = (ctx as unknown as { jwt: { verify: (token?: string) => Promise<false | Record<string, unknown>> } }).jwt;
     const header = headers.authorization;
     const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
     if (!token) return { userId: "" };

@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { createReadStream, existsSync } from "node:fs";
 import { resolve, join, relative, isAbsolute } from "node:path";
 import { config } from "@/config/configs";
-import { updatesService } from "@/services/updates.service";
+import { updatesService, type ExpoManifest } from "@/services/updates.service";
 
 const BOUNDARY = "expo-manifest-boundary";
 
@@ -71,7 +71,7 @@ export const updatesRoutes = new Elysia({ prefix: "/api" })
         set.status = 401;
         return { error: { code: "UNAUTHORIZED", message: "Admin token required" } };
       }
-      await updatesService.recordUpdate(body);
+      await updatesService.recordUpdate({ ...body, manifest: body.manifest as ExpoManifest });
       return { ok: true, updateId: body.updateId };
     },
     {

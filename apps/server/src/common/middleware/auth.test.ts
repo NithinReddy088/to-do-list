@@ -21,5 +21,5 @@ it("passes userId through with a valid token", async () => {
     new Request("http://localhost/whoami", { headers: { authorization: `Bearer ${token}` } }),
   );
   expect(res.status).toBe(200);
-  expect((await res.json()).userId).toBe("user-123");
+  expect(((await res.json()) as { userId: string }).userId).toBe("user-123");
 });

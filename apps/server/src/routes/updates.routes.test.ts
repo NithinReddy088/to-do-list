@@ -62,7 +62,7 @@ describe("updates routes", () => {
       new Request("http://localhost/api/assets?asset=../../../../etc/passwd"),
     );
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as { error: { code: string } };
     expect(body.error.code).toBe("INVALID_ASSET_PATH");
   });
 
@@ -72,7 +72,7 @@ describe("updates routes", () => {
       new Request("http://localhost/api/assets?asset=%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd"),
     );
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as { error: { code: string } };
     expect(body.error.code).toBe("INVALID_ASSET_PATH");
   });
 

@@ -2,6 +2,7 @@ import { createSign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { config } from "@/config/configs";
 import { updateRepo } from "@/repos/update.repo";
+import type { Prisma } from "@prisma/client";
 
 export interface ExpoManifest {
   id: string;
@@ -45,7 +46,7 @@ export const updatesService = {
       platform: input.platform,
       channel: input.channel,
       storagePath: input.storagePath,
-      manifestJson: input.manifest as unknown as Record<string, unknown>,
+      manifestJson: input.manifest as unknown as Prisma.InputJsonValue,
     });
   },
 
