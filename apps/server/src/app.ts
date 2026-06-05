@@ -5,6 +5,7 @@ import { logger } from "@/common/logger";
 import { healthRoutes } from "@/routes/health.routes";
 import { authRoutes } from "@/routes/auth.routes";
 import { todoRoutes } from "@/routes/todo.routes";
+import { updatesRoutes } from "@/routes/updates.routes";
 
 export const app = new Elysia()
   .use(cors())
@@ -20,6 +21,7 @@ export const app = new Elysia()
   })
   .use(healthRoutes)
   .use(authRoutes)
-  .use(todoRoutes);
+  .use(todoRoutes)
+  .use(updatesRoutes);
 
 export default app;
