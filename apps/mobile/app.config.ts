@@ -14,6 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "to-do-list",
   slug: "to-do-list",
+  owner: "nithin1306",
   scheme: "todolist",
   version: "1.0.0",
   orientation: "portrait",
@@ -49,5 +50,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     APP_ENV,
     API_BASE_URL,
+    eas: { projectId: "f8b1926f-81db-4618-ab3f-91849c41f9cc" },
   },
 });
