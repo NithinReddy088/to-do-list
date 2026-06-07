@@ -31,7 +31,10 @@ export interface PublishExportInput {
 let _cachedPrivateKey: string | null = null;
 function getPrivateKey(): string {
   if (!_cachedPrivateKey) {
-    _cachedPrivateKey = readFileSync(config.codeSigningPrivateKeyPath, "utf8");
+    // Prefer an inline PEM (e.g. a Fly.io secret); fall back to the key file.
+    _cachedPrivateKey = config.codeSigningPrivateKey
+      ? config.codeSigningPrivateKey
+      : readFileSync(config.codeSigningPrivateKeyPath, "utf8");
   }
   return _cachedPrivateKey;
 }

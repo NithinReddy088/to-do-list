@@ -14,4 +14,7 @@ export const config = {
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? "http://localhost:4000",
   codeSigningPrivateKeyPath:
     process.env.CODE_SIGNING_PRIVATE_KEY_PATH ?? "./keys/private-key.pem",
+  // Inline PEM alternative to the key file, for hosts where committing/mounting a
+  // key file is awkward (e.g. a Fly.io secret). Takes precedence over the path.
+  codeSigningPrivateKey: process.env.CODE_SIGNING_PRIVATE_KEY,
 };

@@ -1,0 +1,12 @@
+node_modules
+.git
+*.log
+dist
+tsconfig.tsbuildinfo
+# Never bake secrets or runtime data into the image:
+env/.env.local
+env/.env.production
+env/.env.*
+!env/.env.*.example
+keys
+updates
