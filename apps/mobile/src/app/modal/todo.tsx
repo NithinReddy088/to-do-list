@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useTodoStore } from "@/store/todos";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/forms/TextField";
+import { DateField } from "@/components/forms/DateField";
 
 const schema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -63,7 +64,12 @@ export default function TodoModal() {
         control={control}
         name="dueAt"
         render={({ field }) => (
-          <TextField label="Due date (YYYY-MM-DD)" value={field.value ?? ""} onChangeText={field.onChange} />
+          <DateField
+            label="Due date"
+            value={field.value ? field.value : null}
+            onChange={(iso) => field.onChange(iso ?? "")}
+            error={errors.dueAt?.message}
+          />
         )}
       />
       <View className="mt-4">

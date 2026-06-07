@@ -16,10 +16,12 @@
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
     "axios": "^1.16.0",
     "clsx": "^2.1.1",
     "expo": "~54.0.0",
     "expo-constants": "~18.0.13",
+    "expo-crypto": "~15.0.9",
     "expo-linking": "~8.0.12",
     "expo-router": "~6.0.23",
     "expo-secure-store": "~15.0.8",

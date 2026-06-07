@@ -16,7 +16,17 @@ export function TodoItem({ todo, onToggle, onPress }: Props) {
       </Pressable>
       <View className="flex-1">
         <Text className={`text-base ${todo.completed ? "text-muted line-through" : "text-text"}`}>{todo.title}</Text>
-        {todo.dueAt ? <Text className="text-xs text-muted">Due {new Date(todo.dueAt).toLocaleDateString()}</Text> : null}
+        {todo.dueAt ? (
+          <Text className="text-xs text-muted">
+            Due{" "}
+            {new Date(todo.dueAt).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              timeZone: "UTC",
+            })}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );

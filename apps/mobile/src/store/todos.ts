@@ -1,9 +1,17 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ulid } from "ulid"; // available transitively; if not, `bun add ulid`
+import { monotonicFactory } from "ulid";
+import * as Crypto from "expo-crypto";
 import { api } from "@/services/api/client";
 import type { Todo } from "@/types/todo";
+
+// ulid's default PRNG uses Node/web crypto, which Hermes (React Native) lacks —
+// `nodeCrypto.randomBytes is undefined` on-device. Feed it expo-crypto's secure
+// RNG instead (works in Expo Go, no native build). Divide by 256 so the value is
+// strictly < 1 (255/255 would round a char index out of range). Monotonic so ids
+// created within the same millisecond still sort correctly.
+const ulid = monotonicFactory(() => Crypto.getRandomBytes(1)[0] / 256);
 
 // Pure merge used by the sync engine and unit-tested directly. Last-write-wins
 // by `updatedAt`; soft-deleted rows are removed from the visible list but their
@@ -28,6 +36,7 @@ interface TodoState {
   toggleTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
   sync: () => Promise<void>;
+  reset: () => void;
 }
 
 function stamp(t: Todo): Todo {
@@ -98,6 +107,10 @@ export const useTodoStore = create<TodoState>()(
           // Offline or server error: keep pending changes for the next attempt.
         }
       },
+
+      // Clear all local todo state. Called on login/register/logout so a different
+      // account never sees the previous user's locally-cached (and persisted) todos.
+      reset: () => set({ todos: [], pending: [], lastSyncAt: null }),
     }),
     {
       name: "todo-store",

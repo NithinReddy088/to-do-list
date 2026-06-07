@@ -13,6 +13,7 @@
     "db:migrate": "bun --env-file=env/.env.local x prisma migrate dev",
     "db:migrate:deploy": "bun --env-file=env/.env.local x prisma migrate deploy",
     "db:studio": "bun --env-file=env/.env.local x prisma studio",
+    "db:seed": "bun run --env-file=env/.env.local scripts/seed-demo-user.ts",
     "codesign:generate": "bun run scripts/generate-codesign-keys.ts"
   },
   "dependencies": {
