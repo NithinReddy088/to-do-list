@@ -1,65 +1,53 @@
 import { $ } from "bun";
-import { readFileSync, cpSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { ulid } from "ulid";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 
-// Publishes a self-hosted OTA update:
+// Publishes a self-hosted OTA update by uploading the whole export to the
+// server, which writes the files and builds + signs the manifest itself:
 // 1. expo export -> dist/ (JS bundle + assets + metadata.json)
-// 2. copy the export into the server's storage dir
-// 3. build the Expo manifest from metadata.json
-// 4. POST it to the server's admin /api/updates endpoint
+// 2. read every file under dist/ -> base64, parse dist/metadata.json
+// 3. POST { runtimeVersion, platform, channel, metadata, files } to the
+//    server's admin /api/updates endpoint.
 //
 // Env: PLATFORM (ios|android), RUNTIME_VERSION, CHANNEL, SERVER_BASE_URL,
-// ADMIN_PUBLISH_TOKEN, SERVER_STORAGE_DIR (absolute path to apps/server/updates).
+// ADMIN_PUBLISH_TOKEN. No local filesystem access to the server is needed.
 
-const platform = process.env.PLATFORM ?? "ios";
+const platform = process.env.PLATFORM ?? "android";
 const runtimeVersion = process.env.RUNTIME_VERSION ?? "1.0.0";
 const channel = process.env.CHANNEL ?? "production";
 const serverBaseUrl = process.env.SERVER_BASE_URL ?? "http://localhost:4000";
 const adminToken = process.env.ADMIN_PUBLISH_TOKEN ?? "dev-admin-token-change-me";
-const serverStorageDir =
-  process.env.SERVER_STORAGE_DIR ?? join(import.meta.dir, "../../server/updates");
 
-const updateId = crypto.randomUUID();
-const storageRel = join(runtimeVersion, ulid());
-const destDir = join(serverStorageDir, storageRel);
-
-console.log("Exporting JS bundle…");
+console.log(`Exporting JS bundle for ${platform}…`);
 await $`npx expo export --platform ${platform} --output-dir dist`;
 
-mkdirSync(destDir, { recursive: true });
-cpSync("dist", destDir, { recursive: true });
+const distDir = "dist";
 
-const metadata = JSON.parse(readFileSync(join("dist", "metadata.json"), "utf8"));
-const fileMeta = metadata.fileMetadata[platform];
-
-function assetUrl(filePath: string) {
-  return `${serverBaseUrl}/api/assets?asset=${encodeURIComponent(join(storageRel, filePath))}&runtimeVersion=${runtimeVersion}&platform=${platform}`;
+// Recursively collect every file under dist/ as { posixRelPath: base64 }.
+function collectFiles(dir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of readdirSync(dir)) {
+    const abs = join(dir, entry);
+    if (statSync(abs).isDirectory()) {
+      Object.assign(out, collectFiles(abs));
+    } else {
+      const relPath = relative(distDir, abs).split(sep).join("/");
+      out[relPath] = readFileSync(abs).toString("base64");
+    }
+  }
+  return out;
 }
 
-const manifest = {
-  id: updateId,
-  createdAt: new Date().toISOString(),
-  runtimeVersion,
-  launchAsset: {
-    key: "bundle",
-    contentType: "application/javascript",
-    url: assetUrl(fileMeta.bundle),
-  },
-  assets: (fileMeta.assets as Array<{ path: string; ext: string }>).map((a) => ({
-    key: a.path,
-    contentType: a.ext === "png" ? "image/png" : "application/octet-stream",
-    url: assetUrl(a.path),
-  })),
-  metadata: {},
-  extra: {},
-};
+const files = collectFiles(distDir);
+const metadata = JSON.parse(readFileSync(join(distDir, "metadata.json"), "utf8"));
 
-console.log("Publishing manifest to server…");
+console.log(`Uploading ${Object.keys(files).length} files to ${serverBaseUrl}…`);
 const res = await fetch(`${serverBaseUrl}/api/updates`, {
   method: "POST",
   headers: { "content-type": "application/json", authorization: `Bearer ${adminToken}` },
-  body: JSON.stringify({ updateId, runtimeVersion, platform, channel, storagePath: storageRel, manifest }),
+  body: JSON.stringify({ runtimeVersion, platform, channel, metadata, files }),
 });
 if (!res.ok) throw new Error(`Publish failed: ${res.status} ${await res.text()}`);
+
+const { updateId } = (await res.json()) as { updateId: string };
 console.log(`Published update ${updateId} for runtimeVersion ${runtimeVersion} (${platform}/${channel}).`);

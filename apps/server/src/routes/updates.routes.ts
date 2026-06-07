@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { createReadStream, existsSync } from "node:fs";
 import { resolve, join, relative, isAbsolute } from "node:path";
 import { config } from "@/config/configs";
-import { updatesService, type ExpoManifest } from "@/services/updates.service";
+import { updatesService } from "@/services/updates.service";
 
 const BOUNDARY = "expo-manifest-boundary";
 
@@ -62,8 +62,10 @@ export const updatesRoutes = new Elysia({ prefix: "/api" })
     set.headers["content-type"] = query.contentType ?? "application/octet-stream";
     return new Response(createReadStream(full) as unknown as ReadableStream);
   })
-  // Admin publish endpoint. Expects the export to already be on disk under
-  // storagePath; records the precomputed manifest as the latest update.
+  // Admin publish endpoint. Receives the full Expo export (metadata.json +
+  // every dist/ file base64-encoded). The server writes the files to storage
+  // and builds + signs the manifest itself, so publishing works from any
+  // machine to a remotely-deployed server.
   .post(
     "/updates",
     async ({ headers, body, set }) => {
@@ -71,19 +73,24 @@ export const updatesRoutes = new Elysia({ prefix: "/api" })
         set.status = 401;
         return { error: { code: "UNAUTHORIZED", message: "Admin token required" } };
       }
-      await updatesService.recordUpdate({ ...body, manifest: body.manifest as ExpoManifest });
-      return { ok: true, updateId: body.updateId };
+      const { updateId } = await updatesService.publishExport({
+        runtimeVersion: body.runtimeVersion,
+        platform: body.platform,
+        channel: body.channel ?? "production",
+        metadata: body.metadata,
+        files: body.files,
+      });
+      return { ok: true, updateId };
     },
     {
       // Fix 2: body schema validation — malformed requests return 422 before
       // reaching handler logic (Elysia validates before calling the handler).
       body: t.Object({
-        updateId: t.String(),
         runtimeVersion: t.String(),
-        platform: t.String(),
-        channel: t.String(),
-        storagePath: t.String(),
-        manifest: t.Record(t.String(), t.Any()),
+        platform: t.Union([t.Literal("ios"), t.Literal("android")]),
+        channel: t.Optional(t.String({ default: "production" })),
+        metadata: t.Record(t.String(), t.Unknown()),
+        files: t.Record(t.String(), t.String()),
       }),
     },
   );

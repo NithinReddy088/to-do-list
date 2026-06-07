@@ -100,47 +100,106 @@ describe("updates routes", () => {
     });
   });
 
-  // ── Publish body-validation tests ───────────────────────────────────────────
+  // ── Publish via upload (server builds & signs the manifest) ──────────────────
 
-  it("rejects malformed publish body (missing manifest) with 422", async () => {
-    const res = await app.handle(
+  const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
+
+  function exportBody() {
+    const metadata = {
+      fileMetadata: {
+        ios: { bundle: "bundle.js", assets: [{ path: "assets/img", ext: "png" }] },
+      },
+    };
+    const files: Record<string, string> = {
+      "bundle.js": b64("CONSOLE.LOG"),
+      "assets/img": b64("PNGDATA"),
+      "metadata.json": b64(JSON.stringify(metadata)),
+    };
+    return { runtimeVersion: "1.0.0", platform: "ios", channel: "production", metadata, files };
+  }
+
+  async function publish(body: object, token = config.adminPublishToken) {
+    return app.handle(
       new Request("http://localhost/api/updates", {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          authorization: `Bearer ${config.adminPublishToken}`,
+          authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          updateId: "abc",
-          runtimeVersion: "1.0.0",
-          platform: "ios",
-          channel: "production",
-          storagePath: "updates/x",
-          // manifest intentionally omitted
-        }),
+        body: JSON.stringify(body),
       }),
     );
-    expect(res.status).toBe(422);
+  }
+
+  it("publishes an uploaded export and returns { ok, updateId }", async () => {
+    const res = await publish(exportBody());
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; updateId: string };
+    expect(body.ok).toBe(true);
+    expect(typeof body.updateId).toBe("string");
+    expect(body.updateId.length).toBeGreaterThan(0);
   });
 
   it("rejects publish with wrong admin token with 401", async () => {
+    const res = await publish(exportBody(), "wrong-token");
+    expect(res.status).toBe(401);
+  });
+
+  it("serves the signed manifest with server-built asset URLs after publish", async () => {
+    const pubRes = await publish(exportBody());
+    const { updateId } = (await pubRes.json()) as { updateId: string };
+
     const res = await app.handle(
-      new Request("http://localhost/api/updates", {
-        method: "POST",
+      new Request("http://localhost/api/manifest", {
         headers: {
-          "content-type": "application/json",
-          authorization: "Bearer wrong-token",
+          "expo-platform": "ios",
+          "expo-runtime-version": "1.0.0",
+          "expo-channel-name": "production",
+          "expo-protocol-version": "1",
         },
-        body: JSON.stringify({
-          updateId: "abc",
-          runtimeVersion: "1.0.0",
-          platform: "ios",
-          channel: "production",
-          storagePath: "updates/x",
-          manifest: {},
-        }),
       }),
     );
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("multipart/mixed");
+    const text = await res.text();
+    expect(text).toContain(updateId);
+    expect(text).toContain("expo-signature");
+
+    // launchAsset url uses the configured public base URL + /api/assets.
+    const manifestJson = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+    const manifest = JSON.parse(manifestJson) as {
+      launchAsset: { url: string };
+    };
+    expect(manifest.launchAsset.url).toContain(`${config.publicBaseUrl}/api/assets`);
+  });
+
+  it("serves the uploaded bundle bytes via GET /api/assets", async () => {
+    const pubRes = await publish(exportBody());
+    const { updateId } = (await pubRes.json()) as { updateId: string };
+
+    const row = await prisma.update.findFirst({ where: { updateId } });
+    expect(row).not.toBeNull();
+    const storagePath = row!.storagePath;
+
+    const res = await app.handle(
+      new Request(
+        `http://localhost/api/assets?asset=${encodeURIComponent(
+          `${storagePath}/bundle.js`,
+        )}&runtimeVersion=1.0.0&platform=ios`,
+      ),
+    );
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe("CONSOLE.LOG");
+  });
+
+  it("rejects path-traversal in an uploaded file key and writes nothing outside storage", async () => {
+    const body = exportBody();
+    body.files = { "../evil.js": b64("x") };
+    const res = await publish(body);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+
+    const escaped = resolve(join(config.updatesStorageDir, "..", "evil.js"));
+    expect(existsSync(escaped)).toBe(false);
   });
 });
