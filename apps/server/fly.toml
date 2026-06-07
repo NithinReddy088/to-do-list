@@ -1,6 +1,7 @@
 # Fly.io config for the to-do backend.
-# Customize `app` (must be globally unique) and `primary_region` before deploying.
-app = "todo-api-CHANGEME"
+# `app` must be globally unique on Fly; if "to-do-list" is taken, pick another and
+# update PUBLIC_BASE_URL + the app's API_BASE_URL/UPDATES_URL to match.
+app = "to-do-list"
 primary_region = "iad"
 
 [build]

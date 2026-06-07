@@ -42,11 +42,11 @@ cd apps/server
 bun run codesign:generate
 
 # 2) Pick a unique app name + region: edit `app` and `primary_region` in fly.toml, then:
-fly apps create <your-app>
+fly apps create to-do-list
 
 # 3) Postgres (managed) + attach (sets the DATABASE_URL secret automatically)
-fly postgres create --name <your-app>-db
-fly postgres attach <your-app>-db
+fly postgres create --name to-do-list-db
+fly postgres attach to-do-list-db
 
 # 4) Persistent volume for OTA bundles — name MUST match fly.toml mount `source = "todo_data"`
 fly volumes create todo_data --size 1 --region <same region as the app>
@@ -55,17 +55,17 @@ fly volumes create todo_data --size 1 --region <same region as the app>
 fly secrets set \
   JWT_SECRET="$(openssl rand -base64 48)" \
   ADMIN_PUBLISH_TOKEN="$(openssl rand -hex 32)" \
-  PUBLIC_BASE_URL="https://<your-app>.fly.dev" \
+  PUBLIC_BASE_URL="https://to-do-list.fly.dev" \
   CODE_SIGNING_PRIVATE_KEY="$(cat keys/private-key.pem)"
 
 # 6) Deploy — runs `bunx prisma migrate deploy` (release_command) then starts the server
 fly deploy
 
 # 7) Verify
-curl https://<your-app>.fly.dev/health           # -> {"status":"ok"}
+curl https://to-do-list.fly.dev/health           # -> {"status":"ok"}
 ```
 
-Your OTA/API base URL is now **`https://<your-app>.fly.dev`** — use it in Part 2 and Part 5.
+Your OTA/API base URL is now **`https://to-do-list.fly.dev`** — use it in Part 2 and Part 5.
 
 Notes:
 - Keep **one machine** (the volume is per-machine; a 2nd machine wouldn't see the first's
@@ -174,8 +174,8 @@ cd apps/mobile
 cp .env.prod.example .env.prod
 # edit .env.prod:
 #   APP_ENV=prod
-#   API_BASE_URL=https://api.your-domain.com
-#   UPDATES_URL=https://api.your-domain.com/api/manifest
+#   API_BASE_URL=https://to-do-list.fly.dev
+#   UPDATES_URL=https://to-do-list.fly.dev/api/manifest
 #   CODE_SIGNING_CERTIFICATE=        (leave empty unless you enable client-side verification — see Part 5)
 ```
 `runtimeVersion` stays `"1.0.0"` (in `app.config.ts`). Every build and every published
@@ -244,7 +244,7 @@ reinstall.
    PLATFORM=android \
    RUNTIME_VERSION=1.0.0 \
    CHANNEL=production \
-   SERVER_BASE_URL=https://api.your-domain.com \
+   SERVER_BASE_URL=https://to-do-list.fly.dev \
    ADMIN_PUBLISH_TOKEN=<the token from .env.production> \
    bun run publish:update
 
@@ -272,11 +272,11 @@ reinstall.
 ### 5.4 Verify an update end-to-end
 ```bash
 # what the app will fetch:
-curl -s -D - "https://api.your-domain.com/api/manifest" \
+curl -s -D - "https://to-do-list.fly.dev/api/manifest" \
   -H "expo-platform: android" -H "expo-runtime-version: 1.0.0" \
   -H "expo-channel-name: production" -H "expo-protocol-version: 1" | head -30
 # -> 200, multipart/mixed, contains the new update id + expo-signature,
-#    and asset URLs pointing at https://api.your-domain.com/api/assets...
+#    and asset URLs pointing at https://to-do-list.fly.dev/api/assets...
 ```
 
 ---
@@ -324,7 +324,7 @@ cd apps/mobile && cp .env.prod.example .env.prod     # set public URLs
 APP_ENV=prod eas build -p android --profile production   # or local gradlew assembleRelease
 
 # Ship an OTA update (after the build is in users' hands)
-PLATFORM=android RUNTIME_VERSION=1.0.0 SERVER_BASE_URL=https://api.your-domain.com \
+PLATFORM=android RUNTIME_VERSION=1.0.0 SERVER_BASE_URL=https://to-do-list.fly.dev \
   ADMIN_PUBLISH_TOKEN=*** bun run publish:update
 PLATFORM=ios ... bun run publish:update
 ```

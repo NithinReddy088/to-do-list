@@ -12,20 +12,21 @@ const UPDATES_URL = process.env.UPDATES_URL || "http://localhost:4000/api/manife
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Todo",
-  slug: "todo-app",
-  scheme: "todoapp",
+  name: "to-do-list",
+  slug: "to-do-list",
+  scheme: "todolist",
   version: "1.0.0",
   orientation: "portrait",
   userInterfaceStyle: "light",
   assetBundlePatterns: ["**/*"],
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.rootlex.todo",
+    // Bundle/package ids can't contain hyphens, so use the hyphen-free form.
+    bundleIdentifier: "com.rootlex.todolist",
     buildNumber: "1",
   },
   android: {
-    package: "com.rootlex.todo",
+    package: "com.rootlex.todolist",
     versionCode: 1,
   },
   plugins: ["expo-router", "expo-secure-store"],

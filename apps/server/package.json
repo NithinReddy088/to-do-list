@@ -1,5 +1,5 @@
 {
-  "name": "todo-server",
+  "name": "to-do-list-server",
   "version": "1.0.0",
   "description": "To-do backend: auth, sync, self-hosted OTA",
   "main": "src/index.ts",
