@@ -21,77 +21,48 @@ The backend must be reachable by phones over the internet, on **HTTPS** (iOS blo
 plain HTTP by default, and you want TLS regardless). You need: a host, Postgres, the
 Bun server, a reverse proxy with TLS, and the OTA signing key.
 
-> **Note on Firebase:** Firebase can't host this backend. It has no PostgreSQL (only
-> Firestore/Realtime DB — NoSQL), Hosting is static-only, and Cloud Functions run Node
-> (not Bun) with no persistent disk for OTA bundles. Use one of the options below.
+This guide uses **Oracle Cloud "Always Free"** — a genuinely **$0-forever** Linux VM that
+runs everything as-is (Bun + Postgres + the OTA bundle disk). The card Oracle asks for is
+for **identity verification only**; Always-Free resources are not billed as long as you
+stay within the Always-Free limits.
 
-### 1.0 Fastest path: Fly.io (recommended) — committed `Dockerfile` + `fly.toml`
+> Why not the "easy" hosts? **Firebase / Netlify / Cloud Functions can't run this backend
+> at all** — no PostgreSQL, Node-only (not Bun), and no persistent disk for OTA bundles.
+> **Fly.io / Render** *can* run it but are pay-as-you-go (a few $/month) — not free.
 
-The repo ships `apps/server/Dockerfile` and `apps/server/fly.toml`, and the server
-already builds + signs OTA manifests and persists bundles to a disk volume. HTTPS, the
-reverse proxy, and large-body handling are provided by Fly, so there's no nginx to set up.
 
+
+### 1.1 Create the Always-Free VM, open ports, get a free domain
+
+**a) Create the instance.** In the Oracle Cloud console → **Compute → Instances → Create**:
+- **Shape:** pick an **Always-Free-eligible** shape — `VM.Standard.A1.Flex` (Ampere ARM, up
+  to 4 OCPU / 24 GB free) is best; if you hit "out of capacity", use `VM.Standard.E2.1.Micro`
+  (AMD, also Always Free) or try another Availability Domain/region.
+- **Image:** Ubuntu 22.04.
+- **SSH:** upload your public key. Note the instance's **public IP**.
+
+**b) Open the network ports (two layers — this is the #1 Oracle gotcha).**
+- *VCN security list:* Networking → your VCN → the subnet's **Security List** → add **Ingress**
+  rules allowing TCP **80** and **443** (and **22**) from `0.0.0.0/0`.
+- *OS firewall:* Oracle's Ubuntu image also blocks ports with iptables. SSH in and run:
+  ```bash
+  sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+  sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+  sudo netfilter-persistent save
+  ```
+
+**c) Free HTTPS domain (no purchase).** iOS/Android release builds require HTTPS, so you need
+a domain + TLS. Get a free subdomain at **[duckdns.org](https://www.duckdns.org)** (sign in,
+create `to-do-list`, set its IP to your instance's public IP) → you get
+`to-do-list.duckdns.org`. (Any domain works; DuckDNS is the free option.)
+
+### 1.2 Install Bun, Docker, git + get the code
 ```bash
-# one-time
-curl -L https://fly.io/install.sh | sh           # install flyctl
-fly auth signup                                   # or: fly auth login
-
-cd apps/server
-
-# 1) OTA signing keypair (generated locally, kept out of git)
-bun run codesign:generate
-
-# 2) Pick a unique app name + region: edit `app` and `primary_region` in fly.toml, then:
-fly apps create to-do-list
-
-# 3) Postgres (managed) + attach (sets the DATABASE_URL secret automatically)
-fly postgres create --name to-do-list-db
-fly postgres attach to-do-list-db
-
-# 4) Persistent volume for OTA bundles — name MUST match fly.toml mount `source = "todo_data"`
-fly volumes create todo_data --size 1 --region <same region as the app>
-
-# 5) Secrets (the signing key is passed inline — no key file in the image)
-fly secrets set \
-  JWT_SECRET="$(openssl rand -base64 48)" \
-  ADMIN_PUBLISH_TOKEN="$(openssl rand -hex 32)" \
-  PUBLIC_BASE_URL="https://to-do-list.fly.dev" \
-  CODE_SIGNING_PRIVATE_KEY="$(cat keys/private-key.pem)"
-
-# 6) Deploy — runs `bunx prisma migrate deploy` (release_command) then starts the server
-fly deploy
-
-# 7) Verify
-curl https://to-do-list.fly.dev/health           # -> {"status":"ok"}
-```
-
-Your OTA/API base URL is now **`https://to-do-list.fly.dev`** — use it in Part 2 and Part 5.
-
-Notes:
-- Keep **one machine** (the volume is per-machine; a 2nd machine wouldn't see the first's
-  uploaded bundles). `fly scale count 1`.
-- `min_machines_running = 0` scales to zero when idle (cheapest); the app cold-starts on
-  the next request. Set to `1` to stay warm.
-- Fly handles HTTPS and does **not** impose a small body limit, so the ~10 MB OTA publish
-  upload works out of the box.
-- **Cost honesty:** Fly is pay-as-you-go, not a $0 free tier — a scale-to-zero
-  `shared-cpu-1x` machine plus a small Postgres is typically only a few dollars/month or
-  less, but it isn't strictly free. For strictly $0, use the **Oracle Cloud Always Free**
-  ARM VM with the manual steps below.
-
-The manual VPS steps below (1.1–1.8) are the generic alternative (Oracle/Hetzner/EC2).
-
-
-
-### 1.1 Provision a host
-Any Linux VPS works (DigitalOcean/Hetzner/EC2/etc.). You also need a domain, e.g.
-`api.your-domain.com`, pointed at the host's IP.
-
-### 1.2 Get the code + Bun on the host
-```bash
-# on the server
-curl -fsSL https://bun.sh/install | bash      # install Bun
-git clone <your repo> todo && cd todo/apps/server
+# on the VM (Ubuntu), via SSH
+sudo apt-get update -y && sudo apt-get install -y git
+curl -fsSL https://bun.sh/install | bash && source ~/.bashrc        # Bun
+curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER   # Docker (runs Postgres) — re-login after
+git clone https://github.com/NithinReddy088/to-do-list.git todo && cd todo/apps/server
 bun install
 ```
 
@@ -114,7 +85,7 @@ cp env/.env.production.example env/.env.production
 - `DATABASE_URL` — your Postgres URL (host `localhost:5433` for the bundled one, or the managed URL).
 - `JWT_SECRET` — `openssl rand -base64 48`
 - `ADMIN_PUBLISH_TOKEN` — `openssl rand -hex 32` (you'll need this to publish OTA updates)
-- `PUBLIC_BASE_URL` — `https://api.your-domain.com` (must be the public HTTPS URL — the app downloads OTA bundles from here)
+- `PUBLIC_BASE_URL` — `https://to-do-list.duckdns.org` (your public HTTPS URL — the app downloads OTA bundles from here)
 - `UPDATES_STORAGE_DIR` — `./updates` (where OTA bundles are stored; put it on a persistent disk)
 - `CODE_SIGNING_PRIVATE_KEY_PATH` — `./keys/private-key.pem`
 
@@ -140,29 +111,27 @@ pm2 save && pm2 startup
 Or a **systemd** unit, or `docker`. The server listens on `PORT` (default 4000) on all
 interfaces.
 
-### 1.8 Reverse proxy + TLS (nginx + certbot)
+### 1.8 Reverse proxy + free TLS (nginx + certbot)
 Terminate HTTPS at nginx and forward to the Bun server. **Important:** OTA publish
 uploads the whole JS bundle in one request (~10 MB), so raise the body limit.
-```nginx
+```bash
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+sudo tee /etc/nginx/sites-available/todo >/dev/null <<'EOF'
 server {
-  server_name api.your-domain.com;
-  client_max_body_size 50m;          # <-- required for OTA publish uploads
+  server_name to-do-list.duckdns.org;
+  client_max_body_size 50m;          # required for OTA publish uploads
   location / {
     proxy_pass http://127.0.0.1:4000;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
   }
 }
+EOF
+sudo ln -sf /etc/nginx/sites-available/todo /etc/nginx/sites-enabled/todo
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d to-do-list.duckdns.org    # free Let's Encrypt TLS (auto-renews)
 ```
-```bash
-sudo certbot --nginx -d api.your-domain.com   # free Let's Encrypt TLS
-```
-Verify: `curl https://api.your-domain.com/health` → `{"status":"ok"}`.
-
-> **Managed platforms (Railway / Render / Fly.io):** push the repo, add a Postgres
-> add-on, set the same env vars in the dashboard, set the start command to
-> `bun run src/index.ts`, and use the platform's HTTPS URL as `PUBLIC_BASE_URL`. Most
-> default body limits are generous; bump if a publish 413s.
+Verify: `curl https://to-do-list.duckdns.org/health` → `{"status":"ok"}`.
 
 ---
 
@@ -174,8 +143,8 @@ cd apps/mobile
 cp .env.prod.example .env.prod
 # edit .env.prod:
 #   APP_ENV=prod
-#   API_BASE_URL=https://to-do-list.fly.dev
-#   UPDATES_URL=https://to-do-list.fly.dev/api/manifest
+#   API_BASE_URL=https://to-do-list.duckdns.org
+#   UPDATES_URL=https://to-do-list.duckdns.org/api/manifest
 #   CODE_SIGNING_CERTIFICATE=        (leave empty unless you enable client-side verification — see Part 5)
 ```
 `runtimeVersion` stays `"1.0.0"` (in `app.config.ts`). Every build and every published
@@ -244,7 +213,7 @@ reinstall.
    PLATFORM=android \
    RUNTIME_VERSION=1.0.0 \
    CHANNEL=production \
-   SERVER_BASE_URL=https://to-do-list.fly.dev \
+   SERVER_BASE_URL=https://to-do-list.duckdns.org \
    ADMIN_PUBLISH_TOKEN=<the token from .env.production> \
    bun run publish:update
 
@@ -272,11 +241,11 @@ reinstall.
 ### 5.4 Verify an update end-to-end
 ```bash
 # what the app will fetch:
-curl -s -D - "https://to-do-list.fly.dev/api/manifest" \
+curl -s -D - "https://to-do-list.duckdns.org/api/manifest" \
   -H "expo-platform: android" -H "expo-runtime-version: 1.0.0" \
   -H "expo-channel-name: production" -H "expo-protocol-version: 1" | head -30
 # -> 200, multipart/mixed, contains the new update id + expo-signature,
-#    and asset URLs pointing at https://to-do-list.fly.dev/api/assets...
+#    and asset URLs pointing at https://to-do-list.duckdns.org/api/assets...
 ```
 
 ---
@@ -324,7 +293,7 @@ cd apps/mobile && cp .env.prod.example .env.prod     # set public URLs
 APP_ENV=prod eas build -p android --profile production   # or local gradlew assembleRelease
 
 # Ship an OTA update (after the build is in users' hands)
-PLATFORM=android RUNTIME_VERSION=1.0.0 SERVER_BASE_URL=https://to-do-list.fly.dev \
+PLATFORM=android RUNTIME_VERSION=1.0.0 SERVER_BASE_URL=https://to-do-list.duckdns.org \
   ADMIN_PUBLISH_TOKEN=*** bun run publish:update
 PLATFORM=ios ... bun run publish:update
 ```
