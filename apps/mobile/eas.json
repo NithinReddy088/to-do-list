@@ -16,7 +16,11 @@
     "production": {
       "ios": {},
       "android": { "buildType": "apk" },
-      "env": { "APP_ENV": "prod" }
+      "env": {
+        "APP_ENV": "prod",
+        "API_BASE_URL": "https://nithin-to-do.duckdns.org",
+        "UPDATES_URL": "https://nithin-to-do.duckdns.org/api/manifest"
+      }
     }
   },
   "submit": { "production": {} }
